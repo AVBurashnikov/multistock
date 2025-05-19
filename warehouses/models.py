@@ -27,3 +27,12 @@ class Inventory(models.Model):
         return f"{self.product.name} @ {self.warehouse.name} = {self.quantity}"
 
 
+class TransferLog(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    from_warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='from_warehouse')
+    to_warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='to_warehouse')
+    quantity = models.IntegerField(default=0)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.product.name} @ {self.from_warehouse.name} --> {self.to_warehouse} = {self.quantity}"
