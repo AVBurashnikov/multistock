@@ -1,6 +1,8 @@
+import csv
 from itertools import product
 
 from django.core.serializers import serialize
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -34,6 +36,23 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         ]
         return Response(data)
 
+    @action(detail=True, methods=['GET'], url_path='inventory/export')
+    def warehouse_inventory_export(self, request, pk=None):
+        inventories = Inventory.objects.filter(warehouse=pk).select_related('product')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="warehouse_{pk}_inventory.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['product', 'name', 'sku', 'quantity'])
+
+        for inventory in inventories:
+            writer.writerow([
+                inventory.product.id,
+                inventory.product.name,
+                inventory.product.sku,
+                inventory.quantity
+            ])
+        return response
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
