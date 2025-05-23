@@ -26,6 +26,22 @@ class Inventory(models.Model):
     def __str__(self):
         return f"{self.product.name} @ {self.warehouse.name} = {self.quantity}"
 
+class InventoryLog(models.Model):
+    OPERATION_CHOICES = [
+        ('add', 'Добавление'),
+        ('remove', 'Списание'),
+        ('move', 'Перемещение'),
+    ]
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)
+    quantity = models.IntegerField()
+    operation = models.CharField(max_length=10, choices=OPERATION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.operation} {self.product.name} x{self.quantity} at {self.warehouse.name}"
+
 
 class TransferLog(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

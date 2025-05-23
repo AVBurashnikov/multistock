@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from warehouses.models import Warehouse, Product, Inventory, TransferLog
+from warehouses.models import Warehouse, Product, Inventory, TransferLog, InventoryLog
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
@@ -23,6 +23,12 @@ class InventorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Inventory
         fields = ['id', 'product', 'product_name', 'warehouse', 'warehouse_name', 'quantity']
+
+
+class InventoryLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InventoryLog
+        fields = '__all__'
 
 
 class TransferLogSerializer(serializers.ModelSerializer):

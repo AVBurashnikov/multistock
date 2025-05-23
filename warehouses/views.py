@@ -1,15 +1,19 @@
 import csv
+from datetime import datetime, timezone
 from itertools import product
 
 from django.core.serializers import serialize
+from django.db.models import Sum
 from django.http import HttpResponse
+from django.utils.http import content_disposition_header
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from warehouses.models import Warehouse, Product, Inventory, TransferLog
-from warehouses.serializers import WarehouseSerializer, ProductSerializer, InventorySerializer, TransferLogSerializer
+from warehouses.models import Warehouse, Product, Inventory, TransferLog, InventoryLog
+from warehouses.serializers import WarehouseSerializer, ProductSerializer, InventorySerializer, TransferLogSerializer, \
+    InventoryLogSerializer
 
 
 class WarehouseViewSet(viewsets.ModelViewSet):
@@ -36,12 +40,26 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         ]
         return Response(data)
 
+
     @action(detail=True, methods=['GET'], url_path='inventory/export')
     def warehouse_inventory_export(self, request, pk=None):
         inventories = Inventory.objects.filter(warehouse=pk).select_related('product')
+        return self.csv_export(inventories, pk)
 
+
+    @action(detail=False, methods=['GET'], url_path='inventory/export')
+    def warehouse_inventory_export_all(self, request):
+        inventories = Inventory.objects.all()
+        return self.csv_export(inventories, many=True)
+
+
+    def csv_export(self, inventories, warehouse_pk: int = 0, many:bool = False):
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="warehouse_{pk}_inventory.csv"'
+        if many:
+            content_disposition = f'attachment; filename="warehouses_inventory_{datetime.now(timezone.utc).date().strftime("%d_%m_%Y")}.csv"'
+        else:
+            content_disposition = f'attachment; filename="warehouse_{warehouse_pk}_inventory_{datetime.now(timezone.utc).date().strftime("%d_%m_%Y")}.csv"'
+        response['Content-Disposition'] = content_disposition
         writer = csv.writer(response)
         writer.writerow(['product', 'name', 'sku', 'quantity'])
 
@@ -73,6 +91,31 @@ class InventoryViewSet(viewsets.ModelViewSet):
         serializer = InventorySerializer(inventory)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['GET'], url_path='summary')
+    def summary(self, request):
+        # аггрегируем по ID продукта и считаем сумму продуктов на всех складах для групп
+        aggregated = Inventory.objects.values("product").annotate(total_quantity=Sum("quantity"))
+
+        products = {
+            item.id: item
+            for item in Product.objects.filter(id__in=[item["product"] for item in aggregated])
+        }
+
+        result = []
+        for item in aggregated:
+            product = products[item["product"]]
+            result.append(
+                {
+                    "product_id": product.id,
+                    "name": product.name,
+                    "sku": product.sku,
+                    "total_quantity": item["total_quantity"]
+                }
+            )
+
+        return Response(result)
 
     @action(detail=False, methods=["post"], url_path="transfer")
     def transfer(self, request):
@@ -137,6 +180,17 @@ class InventoryViewSet(viewsets.ModelViewSet):
             "to_warehouse_id": to_warehouse_id
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['GET'], url_path='logs')
+    def inventory_logs(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if not all([start_date, end_date]):
+            inventory_logs = InventoryLog.objects.all()
+        else:
+            inventory_logs = InventoryLog.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+
+        serializer = InventoryLogSerializer(inventory_logs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class TransferLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TransferLog.objects.all()
