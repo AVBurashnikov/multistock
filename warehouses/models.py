@@ -21,7 +21,7 @@ class Product(models.Model):
 class Inventory(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)
-    quantity = models.IntegerField(default=1)
+    quantity = models.IntegerField()
         
     def __str__(self):
         return f"{self.product.name} @ {self.warehouse.name} = {self.quantity}"
@@ -30,7 +30,7 @@ class InventoryLog(models.Model):
     OPERATION_CHOICES = [
         ('add', 'Добавление'),
         ('remove', 'Списание'),
-        ('move', 'Перемещение'),
+        ('update', 'Обновление'),
     ]
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

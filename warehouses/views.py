@@ -1,13 +1,11 @@
 import csv
 from datetime import datetime, timezone
-from itertools import product
 
-from django.core.serializers import serialize
 from django.db.models import Sum
 from django.http import HttpResponse
-from django.utils.http import content_disposition_header
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -75,23 +73,12 @@ class WarehouseViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class InventoryViewSet(viewsets.ModelViewSet):
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
-
-    def create(self, request, *args, **kwargs):
-        inventory, created = Inventory.objects.update_or_create(
-            product=request.data['product'],
-            warehouse=request.data['warehouse'],
-            defaults={"quantity": request.data.get("quantity")},
-            create_defaults=request.data
-        )
-        serializer = InventorySerializer(inventory)
-
-        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
-
 
     @action(detail=False, methods=['GET'], url_path='summary')
     def summary(self, request):
@@ -184,7 +171,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
     def inventory_logs(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        if not all([start_date, end_date]):
+
+        if not all([start_date, end_date]) or start_date > end_date:
             inventory_logs = InventoryLog.objects.all()
         else:
             inventory_logs = InventoryLog.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
